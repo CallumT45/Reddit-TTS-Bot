@@ -140,6 +140,7 @@ def valid_comment(score, length, top=False, second=False, third=False):
 
 engine = pyttsx3.init()
 voices =  engine.getProperty('voices')
+engine.setProperty('rate', 190)
 num_comments_dict = {}
 total_num_comments = 30
 print("Getting Comments")
