@@ -4,7 +4,7 @@ import os
 from math import ceil
 from random import choice
 
-import praw, json
+import praw, json, re
 from gtts import gTTS
 from moviepy.editor import concatenate_videoclips, ImageClip, VideoFileClip, AudioFileClip, CompositeAudioClip, concatenate_audioclips
 from PIL import Image, ImageDraw, ImageFont
@@ -29,14 +29,16 @@ subreddit = 'askreddit'
 english = ['en-ca', 'en-uk', 'en-au', 'en-ie', 'en-nz']
 
 # sub = reddit.subreddit(subreddit).hot(limit=1)
-submission = reddit.submission(id='f2wokf')#next(sub)
+submission = reddit.submission(id='f25p55')#next(sub)
 if not submission.stickied and not submission.is_video:
-    raw_post = str(submission.title) + " \u2191 " + str(submission.score) + "  r/" + str(subreddit)
     tts = gTTS(text=submission.title, lang=choice(english))
     tts.save('temp_files/title/title.mp3')
 
 # submission.comments = sorted(submission.comments[0:10], key=lambda x: x.score)
 
+def remove_urls (text):
+    text = re.sub('http[s]?://\S+', '', text, flags=re.MULTILINE)
+    return(text)
 
 def draw_comment_sub(x, y, offset, author, score, body, draw):
     font_body = ImageFont.truetype(r"Open_Sans\OpenSans-Regular.ttf", 30)
@@ -139,16 +141,19 @@ def valid_comment(score, length, top=False, second=False, third=False):
 engine = pyttsx3.init()
 voices =  engine.getProperty('voices')
 num_comments_dict = {}
-total_num_comments = 20
+total_num_comments = 30
 print("Getting Comments")
 draw_title()
 
 
 for count, top_level_comment in enumerate(submission.comments[:total_num_comments]):
     try:
+        top_level_comment.body = remove_urls(top_level_comment.body)
         if valid_comment(1000, 600, top=True):#valid_comment(score, len)
             second_level_comment = top_level_comment.replies[0]
+            second_level_comment.body = remove_urls(second_level_comment.body)
             third_level_comment = second_level_comment.replies[0]
+            third_level_comment.body = remove_urls(third_level_comment.body)
 
             if valid_comment((top_level_comment.score // 10), 400, second=True):
                 if valid_comment((top_level_comment.score // 12), 200, third=True):
@@ -228,7 +233,6 @@ audio_concat = concatenate_audioclips([audio_background]*audio_ratio)
 final_audio = CompositeAudioClip([audio_foreground, audio_concat])
 
 print("Writing Video")
-# 
 final_audio = final_audio.set_end(audio_foreground.duration+1)
 final = concat_clip.set_audio(final_audio)
 final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
