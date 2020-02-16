@@ -267,10 +267,10 @@ audio_ratio = ceil(audio_foreground.duration/audio_background.duration)
 audio_concat = concatenate_audioclips([audio_background]*audio_ratio)
 final_audio = CompositeAudioClip([audio_foreground, audio_concat])
 
-# print("Writing Video")
-# final_audio = final_audio.set_end(audio_foreground.duration+1)
-# final = concat_clip.set_audio(final_audio)
-# final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
+print("Writing Video")
+final_audio = final_audio.set_end(audio_foreground.duration+1)
+final = concat_clip.set_audio(final_audio)
+final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
 
 
 #clearing the temp directory
