@@ -1,1 +1,1 @@
-A Reddit Bot that will convert a given askreddit thread to an mp4 video using gtts and pyttsx3. To choose a thread to convert navigate to that thread and fine the short url. Insert the ID at the end into the code.
+A Reddit Bot that will convert a given askreddit thread to an mp4 video using gtts and pyttsx3. To choose a thread to convert navigate to that thread and find the short url. Insert the ID at the end into the code.
