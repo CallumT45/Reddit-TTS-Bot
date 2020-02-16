@@ -10,32 +10,6 @@ from moviepy.editor import concatenate_videoclips, ImageClip, VideoFileClip, Aud
 from PIL import Image, ImageDraw, ImageFont
 import pyttsx3
 
-for name in glob.glob("temp_files/comment_files/*.mp3"):
-    os.remove(name)
-for name in glob.glob("temp_files/Images/*.png"):
-    os.remove(name)
-
-with open('credentials.txt', 'r') as credfile:
-    credentials = json.load(credfile)
-
-
-reddit = praw.Reddit(client_id=credentials['reddit']['client_id'],
-                     client_secret=credentials['reddit']['client_secret'],
-                     username=credentials['reddit']['username'],
-                     password=credentials['reddit']['password'],
-                     user_agent=credentials['reddit']['user_agent'])
-
-subreddit = 'askreddit'
-english = ['en-ca', 'en-uk', 'en-au', 'en-ie', 'en-nz']
-
-# sub = reddit.subreddit(subreddit).hot(limit=1)
-submission = reddit.submission(id='f25p55')#next(sub)
-if not submission.stickied and not submission.is_video:
-    tts = gTTS(text=submission.title, lang=choice(english))
-    tts.save('temp_files/title/title.mp3')
-
-# submission.comments = sorted(submission.comments[0:10], key=lambda x: x.score)
-
 def remove_urls (text):
     text = re.sub('http[s]?://\S+', '', text, flags=re.MULTILINE)
     return(text)
@@ -90,6 +64,10 @@ def draw_title():
 
 
 def make_comments(top=False, second=False, third=False):
+    """
+    Input boolean: top means only make top level comment, second means make second level comment and top, etc.
+    Output: a frame corresponding to the comment and an mp3 file. For each comment voice choice determines if gtts or pyttsx3 will make the mp3 file.
+    """
     draw_comment(top_level_comment, count)
     voice_choice = choice([1,2])
     if voice_choice == 1:
@@ -127,6 +105,12 @@ def make_comments(top=False, second=False, third=False):
     if third: return
 
 def valid_comment(score, length, top=False, second=False, third=False):
+    """
+    Input boolean: top means validate top level comment, second means validate second level comment, etc.
+    Output boolean: True if comment meets requirements
+
+    Requirements are the comment must exceed a certain score and be less than a certain length. author.name checks to see if the comment is deleted or not.
+    """
     if top:
         if top_level_comment.score > score and len(top_level_comment.body) < length and top_level_comment.author.name:
             return True
@@ -137,6 +121,105 @@ def valid_comment(score, length, top=False, second=False, third=False):
         if third_level_comment.score > score and len(third_level_comment.body) < length and third_level_comment.author.name:
             return True
     return False
+
+def create_audio_file():
+    """ 
+    Reads all the mp3 files in the comment_files directory and converts them to AudioFileClips, also sets up the transition audio.
+    Loops through the comment names and appends them to a new list, whenever a comment and it replies ends a transition is added. The length of each clip is also recorded to
+    a dictionary. All audio clips are combined and outputted to all.mp3.
+    """
+    all_comments = [AudioFileClip(mp3_file) for mp3_file in glob.glob("temp_files/comment_files/*.mp3")] 
+    transition = AudioFileClip(r"transitions\TVColorBars.mp3")
+    all_comments_names = [name for name in glob.glob("temp_files/comment_files/*.mp3")]
+
+
+    all_comments_final = []
+    lendict = {}
+    title = AudioFileClip('temp_files/title/title.mp3')
+    title_dur = title.duration
+    all_comments_final.append(title)
+    all_comments_final.append(transition)
+    count = 0
+
+    for comment_count, indiv in enumerate(all_comments):
+        comment_num = all_comments_names[comment_count].split('$')[1]
+        all_comments_final.append(indiv)
+        lendict[comment_num + str(count)] = indiv.duration
+        count += 1
+        if count % num_comments_dict[comment_num] == 0:
+            count = 0
+            all_comments_final.append(transition)
+
+    print("Writing Audio")
+    audio_concat = concatenate_audioclips(all_comments_final)
+    audio_concat.write_audiofile("comments/all.mp3", 44100)
+    return lendict, title_dur, all_comments_names
+
+
+def create_video_file():
+    """
+    Reads all the frames into a list and the durations for each frame. Creates a list with the title and transition then appends the next frame and sets it duration to the value 
+    read from the length dictionary. Combines all the clips in the list.
+    """
+    img = [img_file for img_file in glob.glob("temp_files/Images/*.png")] 
+    durations = [dur for dur in lendict.values()]
+    transition_clip = VideoFileClip("transitions/TVColorBars.mp4")
+
+    count = 0
+    clips = [ImageClip([img_file for img_file in glob.glob("temp_files/title/*.png")][0]).set_duration(title_dur), transition_clip]#adding title and transition clip
+    for comment_count, indiv in enumerate(img):
+        comment_num = str(all_comments_names[comment_count].split('$')[1])
+        clips.append(ImageClip(indiv).set_duration(durations[comment_count]))
+        count += 1
+        if count % num_comments_dict[comment_num] == 0:
+            clips.append(transition_clip)
+            count = 0
+    concat_clip = concatenate_videoclips(clips, method="compose")
+    return concat_clip
+
+
+
+#creating the temporary directory  
+try:
+    os.makedirs("temp_files/comment_files")
+    os.mkdir("temp_files/Images")
+    os.mkdir("temp_files/title")
+except :
+    print ("Creation of the directory failed")
+
+#clearing the temp directory
+for file in [img_file for img_file in glob.glob("temp_files/Images/*.png")]:
+    os.remove(file)
+for file in [name for name in glob.glob("temp_files/comment_files/*.mp3")]:
+    os.remove(file)
+
+#loading the reddit credentials
+with open('credentials.txt', 'r') as credfile:
+    credentials = json.load(credfile)
+
+#creating an instance of reddit
+reddit = praw.Reddit(client_id=credentials['reddit']['client_id'],
+                     client_secret=credentials['reddit']['client_secret'],
+                     username=credentials['reddit']['username'],
+                     password=credentials['reddit']['password'],
+                     user_agent=credentials['reddit']['user_agent'])
+
+#specifying the subreddit and gtts accents
+subreddit = 'askreddit'
+english = ['en-ca', 'en-uk', 'en-au', 'en-ie', 'en-nz']
+
+# sub = reddit.subreddit(subreddit).hot(limit=1)
+#submission = next(sub)
+
+#setting the thread and tts for title
+submission = reddit.submission(id='f25p55')
+if not submission.stickied and not submission.is_video:
+    tts = gTTS(text=submission.title, lang=choice(english))
+    tts.save('temp_files/title/title.mp3')
+
+# submission.comments = sorted(submission.comments[0:10], key=lambda x: x.score)
+
+
 
 engine = pyttsx3.init()
 voices =  engine.getProperty('voices')
@@ -172,55 +255,6 @@ for count, top_level_comment in enumerate(submission.comments[:total_num_comment
     except Exception as e: print(e)
 
 
-#save down each comment separately, combine them with the commented affect and save them into a folder then do the code below 
-def create_audio_file():
-    all_comments = [AudioFileClip(mp3_file) for mp3_file in glob.glob("temp_files/comment_files/*.mp3")] 
-    transition = AudioFileClip(r"transitions\TVColorBars.mp3")
-    all_comments_names = [name for name in glob.glob("temp_files/comment_files/*.mp3")]
-
-
-    all_comments_final = []
-    lendict = {}
-    title = AudioFileClip('temp_files/title/title.mp3')
-    title_dur = title.duration
-    all_comments_final.append(title)
-    all_comments_final.append(transition)
-    count = 0
-
-    for comment_count, indiv in enumerate(all_comments):
-        comment_num = all_comments_names[comment_count].split('$')[1]
-        all_comments_final.append(indiv)
-        lendict[comment_num + str(count)] = indiv.duration
-        count += 1
-        if count % num_comments_dict[comment_num] == 0:
-            count = 0
-            all_comments_final.append(transition)
-
-    print("Writing Audio")
-    audio_concat = concatenate_audioclips(all_comments_final)
-    audio_concat.write_audiofile("comments/all.mp3", 44100)
-    return lendict, title_dur, all_comments_names
-
-
-def create_video_file():
-    img = [img_file for img_file in glob.glob("temp_files/Images/*.png")] 
-    durations = [dur for dur in lendict.values()]
-    transition_clip = VideoFileClip("transitions/TVColorBars.mp4")
-
-    count = 0
-    clips = [ImageClip([img_file for img_file in glob.glob("temp_files/title/*.png")][0]).set_duration(title_dur), transition_clip]#adding title and transition clip
-    for comment_count, indiv in enumerate(img):
-        comment_num = str(all_comments_names[comment_count].split('$')[1])
-        clips.append(ImageClip(indiv).set_duration(durations[comment_count]))
-        count += 1
-        if count % num_comments_dict[comment_num] == 0:
-            clips.append(transition_clip)
-            count = 0
-    concat_clip = concatenate_videoclips(clips, method="compose")
-    return concat_clip
-
-
-
 lendict, title_dur, all_comments_names = create_audio_file()
 concat_clip = create_video_file()
 music = ['dream of her', 'kavv', 'mem', 'sorry i like you', "the girl i haven't met"]
@@ -233,9 +267,14 @@ audio_ratio = ceil(audio_foreground.duration/audio_background.duration)
 audio_concat = concatenate_audioclips([audio_background]*audio_ratio)
 final_audio = CompositeAudioClip([audio_foreground, audio_concat])
 
-print("Writing Video")
-final_audio = final_audio.set_end(audio_foreground.duration+1)
-final = concat_clip.set_audio(final_audio)
-final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
+# print("Writing Video")
+# final_audio = final_audio.set_end(audio_foreground.duration+1)
+# final = concat_clip.set_audio(final_audio)
+# final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
 
 
+#clearing the temp directory
+for file in [img_file for img_file in glob.glob("temp_files/Images/*.png")]:
+    os.remove(file)
+for file in [name for name in glob.glob("temp_files/comment_files/*.mp3")]:
+    os.remove(file)
