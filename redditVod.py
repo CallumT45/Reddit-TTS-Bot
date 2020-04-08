@@ -1,8 +1,10 @@
+# // To Do: Add small delay before transition, slow down voice, change comment reqs and make a main.py
+
 import glob
 import textwrap
 import os
 from math import ceil
-from random import choice
+from random import choice, choices
 
 import praw, json, re
 from gtts import gTTS
@@ -10,14 +12,14 @@ from moviepy.editor import concatenate_videoclips, ImageClip, VideoFileClip, Aud
 from PIL import Image, ImageDraw, ImageFont
 import pyttsx3
 
-def remove_urls (text):
+def remove_urls(text):
     text = re.sub('http[s]?://\S+', '', text, flags=re.MULTILINE)
     return(text)
 
 def draw_comment_sub(x, y, offset, author, score, body, draw):
     font_body = ImageFont.truetype(r"Open_Sans\OpenSans-Regular.ttf", 30)
     font_meta = ImageFont.truetype(r"Open_Sans\OpenSans-BoldItalic.ttf", 20)
-    draw.text((x, y + offset), str(author), fill='rgb(0, 0, 255)', font=font_meta)
+    draw.text((x, y + offset), str(author), fill='rgb(0,191,255)', font=font_meta)
     author_pixel_size = draw.textsize(str(author), font = font_meta)
     draw.text((x + author_pixel_size[0] + 20, y + offset), str(score) + ' points', fill='rgb(211, 211, 211)', font=font_meta)
     draw.text((x, y + offset + 20), body, fill='rgb(255, 255, 255)', font=font_body)
@@ -37,7 +39,7 @@ def draw_comment(top_level_comment, count, second_level_comment='', third_level_
         draw = ImageDraw.Draw(img)
         top_body_pixel_size = ceil(len(str(top_level_comment.body))/char_per_line)*line_height
         draw_comment_sub(80, 60, 0, top_level_comment.author.name, top_level_comment.score, wrapper.fill(text=top_level_comment.body), draw)
-        draw_comment_sub(120, 140, top_body_pixel_size, second_level_comment.author.name, second_level_comment.score, wrapper.fill(text=second_level_comment.body), draw)
+        draw_comment_sub(120, 150, top_body_pixel_size, second_level_comment.author.name, second_level_comment.score, wrapper.fill(text=second_level_comment.body), draw)
         img.save(f"temp_files/Images/${count}$bsecond_comment.png")
     if third_level_comment:
         img = Image.open(r'Images\commentbg.png')
@@ -46,20 +48,38 @@ def draw_comment(top_level_comment, count, second_level_comment='', third_level_
         top_body_pixel_size = ceil(len(str(top_level_comment.body))/char_per_line)*line_height
         second_body_pixel_size = ceil(len(str(second_level_comment.body))/char_per_line)*line_height
         draw_comment_sub(80, 60, 0, top_level_comment.author.name, top_level_comment.score, wrapper.fill(text=top_level_comment.body), draw)
-        draw_comment_sub(120, 140, top_body_pixel_size, second_level_comment.author.name, second_level_comment.score, wrapper.fill(text=second_level_comment.body), draw)
+        draw_comment_sub(120, 150, top_body_pixel_size, second_level_comment.author.name, second_level_comment.score, wrapper.fill(text=second_level_comment.body), draw)
         draw_comment_sub(160, 220, (top_body_pixel_size + second_body_pixel_size), third_level_comment.author.name, third_level_comment.score, wrapper.fill(text=third_level_comment.body), draw)
         img.save(f"temp_files/Images/${count}$cthird_comment.png")
 
-def draw_title():
-    wrapper = textwrap.TextWrapper(width=45) 
+def draw_title(submission, ca=False):
+    wrapper = textwrap.TextWrapper(width=30) 
     string = wrapper.fill(text=submission.title) 
     img = Image.open(r'Images\background.png')
+
+    if ca:
+        clip_art = Image.open(glob.glob(r'Images\thumbnail\*.png')[0])
+        basewidth = 350
+        wpercent = (basewidth/float(clip_art.size[0]))
+        hsize = int((float(clip_art.size[1])*float(wpercent)))
+
+        clip_art = clip_art.resize((basewidth,hsize), Image.ANTIALIAS)
+        img.paste(clip_art, (800,250), clip_art)
+
+    draw = ImageDraw.Draw(img)
+
+
     draw = ImageDraw.Draw(img)
 
     font = ImageFont.truetype(r"Open_Sans\OpenSans-Regular.ttf", 50)
     # draw the message on the background
+    frame_colour = choice(['rgb(255, 0, 0)', 'rgb(255, 255, 0)', 'rgb(255, 140, 0)', 'rgb(255, 69, 0)', 'rgb(255, 215, 0)'])
+    draw.rectangle([(0,0), (1280,10)], fill=frame_colour)
+    draw.rectangle([(0,720), (1280,710)], fill=frame_colour)
+    draw.rectangle([(0,0), (10,720)], fill=frame_colour)
+    draw.rectangle([(1270,0), (1280,720)], fill=frame_colour)
 
-    draw.text((70, 200), string, fill='rgb(255, 255, 255)', font=font)
+    draw.text((70, 250), string, fill='rgb(255, 255, 255)', font=font)
     img.save("temp_files/title/titleIMG.png")
 
 
@@ -74,7 +94,7 @@ def make_comments(top=False, second=False, third=False):
         tts_1 = gTTS(text=top_level_comment.body, lang=choice(english))
         tts_1.save(f'temp_files/comment_files/${count}$atopComment.mp3')
     else:
-        engine.setProperty('voice', choice(voices).id)
+        engine.setProperty('voice', choices(population=voices,weights=weights)[0].id)#Increasing liklihood of male voice
         engine.save_to_file(top_level_comment.body, f'temp_files/comment_files/${count}$atopComment.mp3')
         engine.runAndWait()
         
@@ -86,7 +106,7 @@ def make_comments(top=False, second=False, third=False):
         tts_2 = gTTS(text=second_level_comment.body, lang=choice(english))
         tts_2.save(f'temp_files/comment_files/${count}$bsecondComment.mp3')
     else:
-        engine.setProperty('voice', choice(voices).id)
+        engine.setProperty('voice', choices(population=voices,weights=weights)[0].id)
         engine.save_to_file(second_level_comment.body, f'temp_files/comment_files/${count}$bsecondComment.mp3')
         engine.runAndWait()
 
@@ -98,7 +118,7 @@ def make_comments(top=False, second=False, third=False):
         tts_3 = gTTS(text=third_level_comment.body, lang=choice(english))
         tts_3.save(f'temp_files/comment_files/${count}$cthirdComment.mp3')
     else:
-        engine.setProperty('voice', choice(voices).id)
+        engine.setProperty('voice', choices(population=voices,weights=weights)[0].id)
         engine.save_to_file(third_level_comment.body, f'temp_files/comment_files/${count}$cthirdComment.mp3')
         engine.runAndWait()        
 
@@ -112,13 +132,13 @@ def valid_comment(score, length, top=False, second=False, third=False):
     Requirements are the comment must exceed a certain score and be less than a certain length. author.name checks to see if the comment is deleted or not.
     """
     if top:
-        if top_level_comment.score > score and len(top_level_comment.body) < length and top_level_comment.author.name:
+        if top_level_comment.score > score and len(top_level_comment.body) < length and top_level_comment.author.name and remove_urls(top_level_comment.body):
             return True
     if second:
-        if second_level_comment.score > score and len(second_level_comment.body) < length and second_level_comment.author.name:
+        if second_level_comment.score > score and len(second_level_comment.body) < length and second_level_comment.author.name and remove_urls(second_level_comment.body):
             return True
     if third:
-        if third_level_comment.score > score and len(third_level_comment.body) < length and third_level_comment.author.name:
+        if third_level_comment.score > score and len(third_level_comment.body) < length and third_level_comment.author.name and remove_urls(third_level_comment.body):
             return True
     return False
 
@@ -129,7 +149,7 @@ def create_audio_file():
     a dictionary. All audio clips are combined and outputted to all.mp3.
     """
     all_comments = [AudioFileClip(mp3_file) for mp3_file in glob.glob("temp_files/comment_files/*.mp3")] 
-    transition = AudioFileClip(r"transitions\TVColorBars.mp3")
+    transition = AudioFileClip(r"transitions/bar_transition.mp3")
     all_comments_names = [name for name in glob.glob("temp_files/comment_files/*.mp3")]
 
 
@@ -147,6 +167,7 @@ def create_audio_file():
         lendict[comment_num + str(count)] = indiv.duration
         count += 1
         if count % num_comments_dict[comment_num] == 0:
+            lendict[comment_num + str(count-1)] = indiv.duration + 0.5
             count = 0
             all_comments_final.append(transition)
 
@@ -166,7 +187,7 @@ def create_video_file():
     transition_clip = VideoFileClip("transitions/TVColorBars.mp4")
 
     count = 0
-    clips = [ImageClip([img_file for img_file in glob.glob("temp_files/title/*.png")][0]).set_duration(title_dur), transition_clip]#adding title and transition clip
+    clips = [ImageClip([img_file for img_file in glob.glob("temp_files/title/*.png")][0]).set_duration(title_dur+0.5), transition_clip]#adding title and transition clip
     for comment_count, indiv in enumerate(img):
         comment_num = str(all_comments_names[comment_count].split('$')[1])
         clips.append(ImageClip(indiv).set_duration(durations[comment_count]))
@@ -185,7 +206,7 @@ try:
     os.mkdir("temp_files/Images")
     os.mkdir("temp_files/title")
 except :
-    print ("Creation of the directory failed")
+    print ("Creation of the directory failed / Directory already exists!")
 
 #clearing the temp directory
 for file in [img_file for img_file in glob.glob("temp_files/Images/*.png")]:
@@ -212,7 +233,7 @@ english = ['en-ca', 'en-uk', 'en-au', 'en-ie', 'en-nz']
 #submission = next(sub)
 
 #setting the thread and tts for title
-submission = reddit.submission(id='f25p55')
+submission = reddit.submission(id='faek4s')
 if not submission.stickied and not submission.is_video:
     tts = gTTS(text=submission.title, lang=choice(english))
     tts.save('temp_files/title/title.mp3')
@@ -223,12 +244,12 @@ if not submission.stickied and not submission.is_video:
 
 engine = pyttsx3.init()
 voices =  engine.getProperty('voices')
-engine.setProperty('rate', 190)
+weights = [0.7 if "DAVID" in voice.id else 0.15 for voice in voices]
+engine.setProperty('rate', 150)
 num_comments_dict = {}
-total_num_comments = 30
+total_num_comments = 40
 print("Getting Comments")
-draw_title()
-
+draw_title(submission)
 
 for count, top_level_comment in enumerate(submission.comments[:total_num_comments]):
     try:
@@ -241,26 +262,27 @@ for count, top_level_comment in enumerate(submission.comments[:total_num_comment
 
             if valid_comment((top_level_comment.score // 10), 400, second=True):
                 if valid_comment((top_level_comment.score // 12), 200, third=True):
-                	make_comments(third=True)
-                	num_comments_dict[str(count) ] = 3
+                    make_comments(third=True)
+                    num_comments_dict[str(count)] = 3
                 else:
-               		make_comments(second=True)
-               		num_comments_dict[str(count) ] = 2
+                    make_comments(second=True)
+                    num_comments_dict[str(count)] = 2
             else:
-            	make_comments(top=True)
-            	num_comments_dict[str(count) ] = 1
+                make_comments(top=True)
+                num_comments_dict[str(count)] = 1
+
         elif valid_comment(2000, 900, top=True):
             make_comments(top=True)
-            num_comments_dict[str(count) ] = 1
-    except Exception as e: print(e)
-
+            num_comments_dict[str(count)] = 1
+        print(round(count*100/total_num_comments, 2), '%')
+    except:pass
 
 lendict, title_dur, all_comments_names = create_audio_file()
 concat_clip = create_video_file()
-music = ['dream of her', 'kavv', 'mem', 'sorry i like you', "the girl i haven't met"]
+music = [music_name for music_name in glob.glob("music/*.mp3")]
 music_choice = choice(music)
 audio_foreground = AudioFileClip('comments/all.mp3')
-audio_background = AudioFileClip(f'music/{music_choice}.mp3').volumex(0.15)
+audio_background = AudioFileClip(music_choice).volumex(0.12)
 
 
 audio_ratio = ceil(audio_foreground.duration/audio_background.duration)
@@ -270,7 +292,7 @@ final_audio = CompositeAudioClip([audio_foreground, audio_concat])
 print("Writing Video")
 final_audio = final_audio.set_end(audio_foreground.duration+1)
 final = concat_clip.set_audio(final_audio)
-final.write_videofile("Comment Video2.mp4", fps=24, threads=4)
+final.write_videofile("Comment Video.mp4", fps=24, threads=4)
 
 
 #clearing the temp directory
