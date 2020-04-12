@@ -7,7 +7,7 @@ from tkinter import filedialog, Label, Tk, Entry, Button, StringVar, HORIZONTAL
 from PIL import Image, ImageTk
 from PIL.ImageTk import PhotoImage
 
-import reddit_functions
+from Reddit_Video import Reddit_Video
 
 
 def _from_rgb(rgb):
@@ -34,24 +34,34 @@ def changePath():
     
 
 def start_conv():
-
+    global after_bar
     while True:
         q.get()
         URL=url.get().split('/')[3] 
 
         time_dict = {'< 5 mins' : 15, '< 10 mins' : 35, '> 10 mins' : 50}
         timing = time_dict[time_dropdown.get()]
-        reddit_functions.main(URL, timing, ca=Path)
+        Reddit_Video(URL, timing, Path, "temp")
         progress['value'] = 100
+        root.after_cancel(after_bar)
 
 def update_bar(timing, x):
+    """
+    Every few seconds(value based on timing variable), update bar. Is an approximation, however once reddit function is done the progress bar will jump to finish.
+    Therefore I need to overestimate how long it will take to make a video.
+    """
+    global after_bar
     x += 1
     progress['value'] = x
-    root.after(round(timing*0.5*1000), update_bar, timing, x)#timing is based on average time to run
+    after_bar = root.after(round(timing*0.5*1000), update_bar, timing, x)#timing is based on average time to run
 
-#use root.after_cancel(update_bar)
+
 def initialise():
-    time_dict = {'< 5 mins' : 15, '< 10 mins' : 35, '> 10 mins' : 50}
+    """
+    Values are different here to better approximate progress bar total time.
+    Place a value in the queue to let the while loop in start_conv progress, then start update bar function
+    """
+    time_dict = {'< 5 mins' : 20, '< 10 mins' : 25, '> 10 mins' : 40}
     timing = time_dict[time_dropdown.get()]
     q.put(450)
     update_bar(timing, 1)
